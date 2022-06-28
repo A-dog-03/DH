@@ -142,6 +142,9 @@ void exchange_key(int sockfd, unsigned char * key_str)
 // 客户端服务器发送接收加密后的消息
 void data_exchange(int sockfd, unsigned char key[])
 {
+    // 预共享密钥
+    psk(sockfd);
+
     // 接收数据的缓冲区
     unsigned char text[36];
 
@@ -210,24 +213,24 @@ int mygetline(char str[], int lim)
    return i;
 }
 
-// // 客户端psk
-// void psk(int sockfd)
-// {
-//     unsigned char text[36];                                           // 存放接收到的密文
-//     unsigned char key[32] = "0a12541bc5a2d6890f2536ffccab2e";         // 预共享密钥
-//     unsigned char expansion_key[15 * 16];                             // 扩展密钥
-//     ScheduleKey(key, expansion_key, AES256_KEY_LENGTH, AES256_ROUND); // 轮密钥
-//     bzero(text, 36);
-//     memcpy(text, "msg", 3);
-//     read(sockfd, text + 3, sizeof(text) - 3);
-//     printf("psk字符串为: %s\n\n", text + 3);
-//     // 对字符串加密并返回给服务器
-//     AesEncrypt(text + 3, expansion_key, AES256_ROUND);
-//     printf("加密后的密文：");
-//     for (int i = 3; i < 35; ++i)
-//         printf("%02x ", text[i]);
-//     printf("\n\n");
-//     printf("回车将加密后的字符串返回给服务器...\n");
-//     getchar();
-//     write(sockfd, text + 3, sizeof(text) - 3);
-// }
+// 客户端psk
+void psk(int sockfd)
+{
+    AES aes;
+    unsigned char text[33];                                           // 存放接收到的密文
+    unsigned char key[32] = "0a12541bc5a2d6890f2536ffccab2e";         // 预共享密钥
+    aes.setCipherKey((char *)key, 32);                          
+    bzero(text, 33);
+    read(sockfd, text, sizeof(text));
+    printf("psk字符串为: %s\n\n", text + 3);
+    // 对字符串加密并返回给服务器
+    int retlen;
+    aes.getPlainText((char *)text+3, &retlen);
+    printf("加密后的密文：");
+    for (int i = 3; i < 35; ++i)
+        printf("%02x ", text[i]);
+    printf("\n\n");
+    printf("回车将加密后的字符串返回给服务器...\n");
+    getchar();
+    write(sockfd, text, sizeof(text));
+}
