@@ -40,7 +40,7 @@ int main(int argc, char **argv)
 {
     if (argc != 3)
     {
-        printf("USAGE: ./middle ClientIP ServerIP");
+        printf("cmd: ./middle clientIP serverIP");
         return 0;
     }
     
@@ -64,7 +64,6 @@ int main(int argc, char **argv)
         fprintf(stderr, "ERROR at pcap_lookupdev(): %s\n", errbuf);
         exit(1);
     }
-    //printf("网络设备名称：%s\n", device);
 
     // 混杂模式打开网络设备(即捕获每一个流经网卡的数据包，无论是否发给自己)
     if ((descr = pcap_open_live(device, MAX, 1, 512, errbuf)) == NULL)
@@ -72,7 +71,6 @@ int main(int argc, char **argv)
         fprintf(stderr, "ERROR at pcap_open_live(): %s\n", errbuf);
         exit(1);
     }
-    //printf("打开%s成功！\n", device);
 
     // 设置BPF过滤规则
     // (src host clientIP and dst host serverIP) or (src host serverIP and dst host clientIP)
@@ -91,9 +89,9 @@ int main(int argc, char **argv)
     // 将IP写入文件
     FILE *fp;
     fp = fopen("./middle.txt", "w");
-    fputs("客户端IP: ", fp);
+    fputs("Client IP: ", fp);
     fputs(argv[1], fp);
-    fputs("\n服务器IP: ", fp);
+    fputs("  and  Server IP: ", fp);
     fputs(argv[2], fp);
     fputs("\n\n", fp);
     fclose(fp);
@@ -166,20 +164,18 @@ void process_pkt(IP_T *ip_t, const struct pcap_pkthdr *pkthdr, const u_char *pac
         if (strncmp((char *)packet + header_len, "pri", 3) == 0)
         {
             mpz_set_str(middle_dh.p, (char *)packet + header_len + 3, 16);
-            // printf("p: %Zd\n", middle_dh.p);
         }
         // 若发送的是客户端公钥，则先计算出对客户端的密钥
         // 然后生成自己的私钥，并计算公钥发送给服务器
         else if (strncmp((char *)packet + header_len, "pub", 3) == 0)
         {
-            // printf("抓到客户端公钥！\n\n");
             mpz_t client_pub_key;
             // 保存客户端公钥
             mpz_init_set_str(client_pub_key, (char *)packet + header_len + 3, 16);
             // 计算对客户端的密钥
             mpz_powm(middle_dh.key2client, client_pub_key, middle_dh.pri_key,
                      middle_dh.p);
-            // gmp_printf("对客户端的密钥为%Zd\n", middle_dh.key2client);
+            
             // 保存对客户端的密钥
             mpz_get_str((char *)key2client, 16, middle_dh.key2client);
             
@@ -200,13 +196,11 @@ void process_pkt(IP_T *ip_t, const struct pcap_pkthdr *pkthdr, const u_char *pac
             memcpy(data_for_checksum + sizeof(ph), tcp, tcp_len);
             u_int16_t checksum = calc_checksum(data_for_checksum, tcp_len + sizeof(ph));
             tcp->check = checksum;
-            // printf("已对客户端公钥进行处理！\n\n");
         }
         // 若发送的是加密消息
         else if (strncmp((char *)packet + header_len, "msg", 3) == 0)
         {
             // 解密消息，输出
-            // printf("抓到客户端发往服务器的加密消息!\n\n");
             char *buf = (char *)packet + header_len + 3;
             bzero(plain_text, 33);
             strncpy((char *)plain_text, buf, 32);
@@ -214,10 +208,9 @@ void process_pkt(IP_T *ip_t, const struct pcap_pkthdr *pkthdr, const u_char *pac
             int retlen;
             char * plain = aes_client.getCripherText((char *) plain_text, &retlen);
             
-            fputs("客户端->服务器: ", fp);
+            fputs("Data sent from the client to the server: ", fp);
             fputs(plain, fp);
             fputs("\n", fp);
-            // printf("客户端->服务器，明文：%s\n\n", plain_text);
 
             // 使用对服务器的密钥加密消息
             char * cripher = aes_server.getPlainText(plain, &retlen);
@@ -239,7 +232,6 @@ void process_pkt(IP_T *ip_t, const struct pcap_pkthdr *pkthdr, const u_char *pac
             memcpy(data_for_checksum + sizeof(ph), tcp, tcp_len);
             uint16_t checksum = calc_checksum(data_for_checksum, tcp_len + sizeof(ph));
             tcp->check = checksum;
-            // printf("已对客户端发往服务器的消息进行处理！\n\n");
         }
         // 以太网帧头部目的地设置为服务器MAC
         memcpy(ethernet->ether_dhost, server_mac, 6);
@@ -251,7 +243,6 @@ void process_pkt(IP_T *ip_t, const struct pcap_pkthdr *pkthdr, const u_char *pac
         // 并且需要生成中间人自己的私钥和公钥
         if (strncmp((char *)packet + header_len, "pub", 3) == 0)
         {
-            // printf("已收到服务器公钥!\n");
             mpz_t server_pub_key; // 来自服务器的公钥
             // 将服务器的公钥保存到server_pub_key
             mpz_init_set_str(server_pub_key, (char *)packet + header_len + 3, 16);
@@ -262,7 +253,7 @@ void process_pkt(IP_T *ip_t, const struct pcap_pkthdr *pkthdr, const u_char *pac
             // 计算对服务器的密钥, B^c mod p
             mpz_powm(middle_dh.key2server, server_pub_key, middle_dh.pri_key,
                      middle_dh.p);
-            // gmp_printf("对服务器的密钥为%Zd\n", middle_dh.key2server);
+            
             // 保存对服务器的密钥
             mpz_get_str((char *)key2server, 16, middle_dh.key2server);
             // 密钥扩展
@@ -282,12 +273,10 @@ void process_pkt(IP_T *ip_t, const struct pcap_pkthdr *pkthdr, const u_char *pac
             memcpy(data_for_checksum + sizeof(ph), tcp, tcp_len);
             uint16_t checksum = calc_checksum(data_for_checksum, tcp_len + sizeof(ph));
             tcp->check = checksum;
-            // printf("已对服务器公钥进行处理！\n\n");
         }
         // 若发送的是加密消息
         else if (strncmp((char *)packet + header_len, "msg", 3) == 0)
         {
-            // printf("已收到服务器发往客户端的加密消息！\n\n");
             char *buf = (char *)packet + header_len + 3;
             bzero(plain_text, 33);
             strncpy((char *)plain_text, buf, 32);
@@ -295,10 +284,9 @@ void process_pkt(IP_T *ip_t, const struct pcap_pkthdr *pkthdr, const u_char *pac
             char * plain = aes_server.getCripherText((char *)plain_text, &retlen);
             
             // TODO: file
-            fputs("服务器->客户端: ", fp);
+            fputs("Data sent from the server to the client: ", fp);
             fputs((char *)plain, fp);
             fputs("\n", fp);
-            // printf("服务器->客户端，明文：%s\n\n", plain_text);
 
             // 加密消息，使用对服务器的密钥
             char * cripher = aes_client.getPlainText(plain, &retlen);
@@ -320,7 +308,6 @@ void process_pkt(IP_T *ip_t, const struct pcap_pkthdr *pkthdr, const u_char *pac
             memcpy(data_for_checksum + sizeof(ph), tcp, tcp_len);
             uint16_t checksum = calc_checksum(data_for_checksum, tcp_len + sizeof(ph));
             tcp->check = checksum;
-            // printf("已对服务器发往客户端的加密消息进行处理!\n\n");
         }
         memcpy(ethernet->ether_dhost, client_mac, 6);
     }

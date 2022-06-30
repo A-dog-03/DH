@@ -22,7 +22,7 @@ int main(int argc, char **argv)
 {
     if (argc != 3)
     {
-        printf("使用方式: ./client 服务器IP 服务器端口\n例如: ./client 127.0.0.1 8888");
+        printf("cmd: ./client serverIP serverPort\nexample: ./client 192.168.17.147 8000");
         return 0;
     }
     int sockfd, connfd;
@@ -31,7 +31,7 @@ int main(int argc, char **argv)
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0)
     {
-        printf("套接字创建失败!\n");
+        printf("Socket ERROR!\n");
         exit(1);
     }
 
@@ -43,12 +43,12 @@ int main(int argc, char **argv)
     // 连接服务器
     if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
     {
-        printf("连接服务器失败!\n");
+        printf("Failed to connect to server!\n");
         exit(1);
     }
     else
-        printf("成功连接服务器！!\n");
-    
+        printf("connect to server successfully!\n");
+
     // 处理函数
     process(sockfd);
 
@@ -82,10 +82,7 @@ void exchange_key(int sockfd, unsigned char * key_str)
               key.pub_key, key.s, server_pub_key, NULL);// 初始化mpz_t类型的变量
     
     // 由客户端生成 p 并以明文形式发送给服务器端
-    printf("将生成大素数p并发送(回车继续)...\n");
-    getchar();
     generate_p(key.p);
-    gmp_printf("p = %Zd\n\n", key.p);
     mpz_set_ui(key.g, (unsigned long int)5); // base g = 5
     
     // 将p发送给服务器
@@ -96,11 +93,8 @@ void exchange_key(int sockfd, unsigned char * key_str)
     write(sockfd, buf, sizeof(buf));
 
     // 客户端选择秘密的随机数 b
-    printf("即将生成客户端私钥与公钥（回车继续）...\n");
-    getchar();
     generate_pri_key(key.pri_key);
-    gmp_printf("客户端的私钥为%Zd\n\n", key.pri_key);
-
+    
     // 客户端计算 [a^b mod p]
     mpz_powm(key.pub_key, key.g, key.pri_key,
              key.p);
@@ -108,11 +102,9 @@ void exchange_key(int sockfd, unsigned char * key_str)
     
     // 接收服务器的 [a^c mod p]
     bzero(buf, 1024);
-    printf("等待接收服务器的公钥, 并发送客户端公钥...\n\n");
     read(sockfd, buf, sizeof(buf));
     mpz_set_str(server_pub_key, buf + 3, 16); // 按16进制将buf传递给server_pub_key
-    gmp_printf("服务器的公钥为%Zd\n\n", server_pub_key);
-
+    
     // 将客户端的 [a^b mod p] 发送给服务器端
     bzero(buf, 1024);
     memcpy(buf, "pub", 3);
@@ -120,8 +112,6 @@ void exchange_key(int sockfd, unsigned char * key_str)
     write(sockfd, buf, sizeof(buf));
 
     // 客户端根据DH协议，计算密钥 s = [a^bc mod p]
-    printf("按下回车计算客户端经过DH协议得到的密钥...\n");
-    getchar();
     mpz_powm(key.s, server_pub_key, key.pri_key,
              key.p);
     mpz_set(s, key.s); // 将密钥传递给s
@@ -135,7 +125,7 @@ void exchange_key(int sockfd, unsigned char * key_str)
                key.pub_key, key.s, server_pub_key, NULL);
     
     
-    gmp_printf("DH得出密钥为: %Zd\n\n", s);
+    gmp_printf("key: %Zd\n\n", dh_s);
     mpz_clear(s); // 清除s
 }
 
@@ -155,13 +145,13 @@ void data_exchange(int sockfd, unsigned char key[])
     int retlen;
     // 密钥扩展，生成轮密钥
     aes.setCipherKey((char *)key, strlen((const char*)key));
-    printf("初始化轮密钥完成！\n\n");
+    
     // 循环接收消息
     while (1)
     {
         // 输入要发送的明文
         bzero(text + 3, 33);
-        printf("要发送的明文: ");
+        printf("please input: ");
         mygetline((char *) text+3, 33);
         
         // AES256加密
@@ -172,26 +162,26 @@ void data_exchange(int sockfd, unsigned char key[])
         }
         text[3+retlen] = '\0';
         
-        printf("密文为:\n");
+        printf("The result of data encryption is:\n");
         for (int i = 3; i < 35; ++i)
             printf("%02x ", text[i]);
         printf("\n");
         
         // 发送密文
         write(sockfd, text, sizeof(text));
-        printf("发送成功！\n等待服务器回复...\n");
+        printf("Send successful...\n");
         
         // 接收服务器发送的密文
         bzero(text + 3, 33);
         read(sockfd, text, sizeof(text));
-        printf("服务器端发送的密文：\n");
+        printf("Receive from the server: \n");
         for (int i = 3; i < 35; ++i)
             printf("%02x ", text[i]);
         printf("\n");
         
         // AES256解密
         char * plain = aes.getCripherText((char *)text+3, &retlen);
-        printf("解密后的明文：");
+        printf("The result of data decryption is: ");
         for (int i = 3; i < 35; ++i)
             printf("%c", text[i]);
         printf("\n\n\n");
@@ -222,15 +212,13 @@ void psk(int sockfd)
     aes.setCipherKey((char *)key, 32);                          
     bzero(text, 33);
     read(sockfd, text, sizeof(text));
-    printf("psk字符串为: %s\n\n", text + 3);
+    printf("psk: %s\n\n", text + 3);
     // 对字符串加密并返回给服务器
     int retlen;
     aes.getPlainText((char *)text+3, &retlen);
-    printf("加密后的密文：");
+    printf("The result of data encryption is：");
     for (int i = 3; i < 35; ++i)
         printf("%02x ", text[i]);
     printf("\n\n");
-    printf("回车将加密后的字符串返回给服务器...\n");
-    getchar();
     write(sockfd, text, sizeof(text));
 }
