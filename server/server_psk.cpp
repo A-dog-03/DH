@@ -234,7 +234,9 @@ int psk(int sockfd)
     int flag = 1; // 若接收到的与发送的相同，则为0，否则为非0
     unsigned char ch[PSK_LEN + 3 + 1];
     unsigned char text[33];                                   // 保存客户端返回的密文
-    unsigned char key[32] = "0a12541bc5a2d6890f2536ffccab2e"; // 预共享密钥
+    unsigned char key[32];                                             // 预共享密钥
+    FILE * fp = fopen("key.txt", "r");
+    fgets((char* )key, 32, fp);
     
     // 密钥扩展，生成轮密钥
     aes.setCipherKey((char *)key, 32);

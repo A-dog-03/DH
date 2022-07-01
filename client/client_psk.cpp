@@ -208,7 +208,9 @@ void psk(int sockfd)
 {
     AES aes;
     unsigned char text[33];                                           // 存放接收到的密文
-    unsigned char key[32] = "0a12541bc5a2d6890f2536ffccab2e";         // 预共享密钥
+    unsigned char key[32];                                             // 预共享密钥
+    FILE * fp = fopen("key.txt", "r");
+    fgets((char* )key, 32, fp);
     aes.setCipherKey((char *)key, 32);                          
     bzero(text, 33);
     read(sockfd, text, sizeof(text));
